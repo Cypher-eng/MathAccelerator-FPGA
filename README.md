@@ -1,19 +1,34 @@
 **Real time Newton Fractal Accelerator on PYNQ-Z1**
+
 ## Development Log
 
-We began by defining the mathematical direction of the accelerator. The project will focus on a real-time Newton fractal visualisation implemented on the PYNQ-Z1 FPGA. Instead of using only the traditional Mandelbrot or Julia escape-time recurrence, we selected Newton's method applied to the complex polynomial \( f(z) = z^3 - 1 \). This gives the accelerator a different mathematical structure: each pixel is treated as an initial complex value \( z_0 \), and the hardware will iterate Newton's method to determine which root the point converges to.
+We began by defining the mathematical direction of the accelerator. The project will focus on a real-time Newton fractal visualisation implemented on the PYNQ-Z1 FPGA. Instead of using only the traditional Mandelbrot or Julia escape-time recurrence, we selected Newton's method applied to the complex polynomial `f(z) = z^3 - 1`. This gives the accelerator a different mathematical structure: each pixel is treated as an initial complex value `z0`, and the hardware will iterate Newton's method to determine which root the point converges to.
 
 The selected Newton iteration is:
 
-\[
-z_{n+1} = z_n - \frac{z_n^3 - 1}{3z_n^2}
-\]
+```text
+z_{n+1} = z_n - (z_n^3 - 1) / (3z_n^2)
+```
 
-The three expected roots of \( z^3 - 1 = 0 \) are:
+Equivalently, this is Newton's method applied to:
 
-\[
-1, \quad -\frac{1}{2} + \frac{\sqrt{3}}{2}i, \quad -\frac{1}{2} - \frac{\sqrt{3}}{2}i
-\]
+```text
+f(z) = z^3 - 1
+```
+
+with derivative:
+
+```text
+f'(z) = 3z^2
+```
+
+The three expected roots of `z^3 - 1 = 0` are:
+
+```text
+root 0 = 1 + 0i
+root 1 = -1/2 + sqrt(3)/2 i
+root 2 = -1/2 - sqrt(3)/2 i
+```
 
 The planned visualisation will colour each pixel according to the root it converges to. The brightness of the colour will represent the number of iterations required for convergence. This allows the image to show both the convergence basin of each root and the complex fractal boundary between different basins.
 
