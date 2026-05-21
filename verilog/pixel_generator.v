@@ -78,6 +78,12 @@ localparam AXI_OK = 2'b00;
 localparam AXI_ERR = 2'b10;
 
 reg [31:0]                          regfile [REG_FILE_SIZE-1:0];
+reg [31:0] regfile [REG_FILE_SIZE-1:0];
+integer ri;
+initial begin
+    for (ri = 0; ri < REG_FILE_SIZE; ri = ri + 1)
+        regfile[ri] = 32'h0;
+end
 reg [REG_FILE_AWIDTH-1:0]           writeAddr, readAddr;
 reg [31:0]                          readData, writeData;
 reg [1:0]                           readState = AWAIT_RADD;
