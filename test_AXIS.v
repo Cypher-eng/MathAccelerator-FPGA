@@ -32,6 +32,7 @@ module pixgen_tb;
 
     //Instantiate the pixel generator
     wire valid, sof, eol;
+    wire [31:0] tdata; 
     pixel_generator p1 (
         .out_stream_aclk(clk),
         .s_axi_lite_aclk(clk),
@@ -39,7 +40,7 @@ module pixgen_tb;
         .periph_resetn(rst),
 
         //Stream output
-        .out_stream_tdata(),
+        .out_stream_tdata(tdata),
         .out_stream_tkeep(),
         .out_stream_tlast(eol),
         .out_stream_tready(ready),
