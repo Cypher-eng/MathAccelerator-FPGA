@@ -77,7 +77,6 @@ localparam AWAIT_READ = 2'b10;
 localparam AXI_OK = 2'b00;
 localparam AXI_ERR = 2'b10;
 
-reg [31:0]                          regfile [REG_FILE_SIZE-1:0];
 reg [31:0] regfile [REG_FILE_SIZE-1:0];
 integer ri;
 initial begin
