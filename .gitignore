@@ -1,0 +1,9 @@
+# Simulation output files - too large for GitHub
+simulation/test.vcd
+simulation/sim
+simulation/output.png
+simulation/*.vcd
+*.vcd
+
+# Compiled Verilog simulation
+sim
