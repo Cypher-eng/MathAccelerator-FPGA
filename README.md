@@ -99,7 +99,7 @@ the headline result in your report is the on-board comparison.
 
 ## What the benchmark metrics mean
 
-A "benchmark" is just: fix the workload (resolution, max_iter, window), measure
+benchmark: fix the workload (resolution, max_iter, window), measure
 time, and report rates. The useful numbers:
 
 | Metric | Meaning | Why you care |
