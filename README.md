@@ -102,7 +102,7 @@ the headline result in your report is the on-board comparison.
 benchmark: fix the workload (resolution, max_iter, window), measure
 time, and report rates. The useful numbers:
 
-| Metric | Meaning | Why you care |
+| Metric | Meaning | Why care |
 |---|---|---|
 | **Latency** | time for ONE frame (ms) | how snappy it feels |
 | **FPS** (frames/sec) = 1 / latency | how many full images per second | headline user-facing number; "real-time" ≈ 30–60 FPS |
