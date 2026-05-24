@@ -73,7 +73,7 @@ needed yet.
 There are **three** places code can run. Keep them straight and the whole
 project makes sense:
 
-1. **Your laptop CPU** (fast x86, ~3 GHz). Used during development to write the
+1. **laptop CPU** (fast x86, ~3 GHz). Used during development to write the
    algorithm, make the golden reference image, and get a rough CPU benchmark.
 2. **The PYNQ board's ARM CPU** (Zynq "PS", dual-core ~650 MHz, much slower than
    your laptop). This is where the *official* CPU baseline runs at the end.
