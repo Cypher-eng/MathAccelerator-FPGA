@@ -228,7 +228,7 @@ assign r = x[7:0];
 
 assign g = y[7:0]; 
 
-assign b = x[7:0] ^ y[7:0]; 
+assign b = x[7:0] ^ y[7:0] + frame; 
 
 packer pixel_packer(    .aclk(out_stream_aclk),
                         .aresetn(periph_resetn),
