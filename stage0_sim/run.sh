@@ -4,12 +4,12 @@
 set -e
 
 echo "[1/3] Compiling Verilog with Icarus Verilog (iverilog)..."
-iverilog -o sim.out tb_view.v pixel_generator.v packer.v
+/c/iverilog/bin/iverilog -o sim.out tb_view.v pixel_generator.v packer.v
 
 echo "[2/3] Running the compiled simulation (vvp)..."
-vvp sim.out
+/c/iverilog/bin/vvp sim.out
 
 echo "[3/3] Converting captured pixels to an image (Python)..."
-python3 txt2png.py
+python txt2png.py
 
 echo "Done. Open output.png to see the result."
