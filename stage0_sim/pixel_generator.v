@@ -246,7 +246,7 @@ wire [7:0] r, g, b;
 
 assign r = x[7:0] + frame;
 assign g = y[7:0] + frame;
-assign b = x[6:0] + y[6:0] + frame;
+assign b = x[6:0] ^ y[6:0] + frame;
 
 // ------------------------------------------------------------
 // Pack RGB pixels into AXI stream words
