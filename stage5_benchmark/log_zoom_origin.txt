@@ -3,4 +3,5 @@ first_pixel_cycle = 9
 last_pixel_cycle  = 19265
 total_cycles      = 19257
 cycles_per_pixel  = 11.144097
-tb_stage5_benchmark.v:170: $finish called at 192935000 (1ps)
+iteration histogram written to iter_hist.txt
+tb_stage5_benchmark.v:185: $finish called at 192935000 (1ps)

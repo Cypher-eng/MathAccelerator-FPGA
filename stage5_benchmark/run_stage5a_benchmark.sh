@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-rm -f simv_5a *.txt *.png log_*.txt
+rm -f simv_5a *.txt *.png log_*.txt hist_*.txt
 
 echo "[1/1] Build Stage 5A benchmark simulation"
 iverilog -g2012 -o simv_5a tb_stage5_benchmark.v pixel_generator_5a.v packer.v
@@ -22,6 +22,7 @@ run_case () {
     vvp simv_5a +ZR0="$zr0" +ZI0="$zi0" +STEP="$step" +MAXIT="$maxit" | tee "log_${name}.txt"
 
     mv verilog_board_out.txt "verilog_${name}.txt"
+    mv iter_hist.txt "hist_${name}.txt"
 
     python3 diff_frames.py "golden_${name}.txt" "verilog_${name}.txt"
     python3 txt2png.py "verilog_${name}.txt" 48 36 "verilog_${name}.png"

@@ -212,6 +212,7 @@ reg [1:0] state;
 reg [9:0] x;
 reg [8:0] y;
 reg [5:0] iter;
+reg [5:0] debug_iter_out;
 reg signed [63:0] zr;
 reg signed [63:0] zi;
 reg valid_int;
@@ -369,6 +370,7 @@ always @(posedge out_stream_aclk) begin
 
                 if (denom == 0) begin
                     set_colour(2'd3, iter);
+                    debug_iter_out <= iter;
                     valid_int <= 1;
                     state <= S_DONE;
                 end else begin
@@ -384,10 +386,12 @@ always @(posedge out_stream_aclk) begin
 
                     if (rid != 2'd3) begin
                         set_colour(rid, iter);
+                        debug_iter_out <= iter;
                         valid_int <= 1;
                         state <= S_DONE;
                     end else if (iter == maxit_use - 1) begin
                         set_colour(2'd3, iter);
+                        debug_iter_out <= iter;
                         valid_int <= 1;
                         state <= S_DONE;
                     end else begin

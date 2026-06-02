@@ -31,6 +31,7 @@ wire wready;
 reg wvalid = 0;
 
 integer out_file;
+integer hist_file;
 integer count;
 integer zr0;
 integer zi0;
@@ -43,6 +44,8 @@ integer first_pixel_cycle;
 integer last_pixel_cycle;
 integer total_cycles;
 integer started;
+integer k;
+integer hist [0:63];
 
 always #5 clk = ~clk;
 
@@ -125,6 +128,9 @@ initial begin
     total_cycles = 0;
     started = 0;
 
+    for (k = 0; k < 64; k = k + 1)
+        hist[k] = 0;
+
     out_file = $fopen("verilog_board_out.txt", "w");
 
     repeat (5) @(posedge clk);
@@ -153,6 +159,7 @@ always @(posedge clk) begin
         end
 
         $fwrite(out_file, "%0d %0d %0d\n", dut.r, dut.g, dut.b);
+        hist[dut.debug_iter_out] = hist[dut.debug_iter_out] + 1;
         count = count + 1;
 
         if (count == target_pixels) begin
@@ -161,11 +168,19 @@ always @(posedge clk) begin
 
             $fclose(out_file);
 
+            hist_file = $fopen("iter_hist.txt", "w");
+            for (k = 0; k < 64; k = k + 1) begin
+                if (hist[k] != 0)
+                    $fwrite(hist_file, "%0d %0d\n", k, hist[k]);
+            end
+            $fclose(hist_file);
+
             $display("wrote %0d pixels", count);
             $display("first_pixel_cycle = %0d", first_pixel_cycle);
             $display("last_pixel_cycle  = %0d", last_pixel_cycle);
             $display("total_cycles      = %0d", total_cycles);
             $display("cycles_per_pixel  = %0f", total_cycles * 1.0 / target_pixels);
+            $display("iteration histogram written to iter_hist.txt");
 
             $finish;
         end
