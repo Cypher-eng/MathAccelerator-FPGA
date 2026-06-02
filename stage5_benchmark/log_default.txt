@@ -1,0 +1,6 @@
+wrote 1728 pixels
+first_pixel_cycle = 5
+last_pixel_cycle  = 10367
+total_cycles      = 10363
+cycles_per_pixel  = 5.997106
+tb_stage5_benchmark.v:170: $finish called at 103965000 (1ps)
