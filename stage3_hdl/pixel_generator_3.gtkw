@@ -1,0 +1,37 @@
+[*]
+[*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
+[*] Thu May 28 13:30:53 2026
+[*]
+[dumpfile] "C:\Users\three\Documents\FPGA_PROJECT\MathAccelerator-FPGA\stage3_hdl\test.vcd"
+[dumpfile_mtime] "Thu May 28 13:03:00 2026"
+[dumpfile_size] 1575178405
+[savefile] "C:\Users\three\Documents\FPGA_PROJECT\MathAccelerator-FPGA\stage3_hdl\pixel_generator_3.gtkw"
+[timestart] 0
+[size] 1707 996
+[pos] -235 -236
+*-17.000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] pixgen_tb.
+[treeopen] pixgen_tb.p1.
+[sst_width] 197
+[signals_width] 206
+[sst_expanded] 1
+[sst_vpaned_height] 292
+@28
+pixgen_tb.clk
+pixgen_tb.rst
+pixgen_tb.valid
+pixgen_tb.ready
+pixgen_tb.sof
+pixgen_tb.eol
+@420
+pixgen_tb.xCount
+pixgen_tb.yCount
+@22
+pixgen_tb.p1.out_stream_tdata[31:0]
+pixgen_tb.p1.r[7:0]
+pixgen_tb.p1.g[7:0]
+pixgen_tb.p1.b[7:0]
+pixgen_tb.p1.x[9:0]
+pixgen_tb.p1.y[8:0]
+[pattern_trace] 1
+[pattern_trace] 0

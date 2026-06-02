@@ -84,36 +84,28 @@ reg [2:0]                           writeState = AWAIT_WADD_AND_DATA;
 
 //Read from the register file
 always @(posedge s_axi_lite_aclk) begin
-    
     readData <= regfile[readAddr];
-
     if (!axi_resetn) begin
     readState <= AWAIT_RADD;
     end
-
     else case (readState)
-
         AWAIT_RADD: begin
             if (s_axi_lite_arvalid) begin
                 readAddr <= s_axi_lite_araddr[2+:REG_FILE_AWIDTH];
                 readState <= AWAIT_FETCH;
             end
         end
-
         AWAIT_FETCH: begin
             readState <= AWAIT_READ;
         end
-
         AWAIT_READ: begin
             if (s_axi_lite_rready) begin
                 readState <= AWAIT_RADD;
             end
         end
-
         default: begin
             readState <= AWAIT_RADD;
         end
-
     endcase
 end
 
@@ -126,7 +118,6 @@ assign s_axi_lite_rdata = readData;
 
 integer i;
 always @(posedge s_axi_lite_aclk) begin
-
     if (!axi_resetn) begin
         writeState <= AWAIT_WADD_AND_DATA;
         for (i = 0; i < REG_FILE_SIZE; i = i + 1) begin
@@ -135,7 +126,6 @@ always @(posedge s_axi_lite_aclk) begin
     end
 
     else case (writeState)
-
         AWAIT_WADD_AND_DATA: begin  //Idle, awaiting a write address or data
             case ({s_axi_lite_awvalid, s_axi_lite_wvalid})
                 2'b10: begin
@@ -193,7 +183,7 @@ assign s_axi_lite_wready = (writeState == AWAIT_WADD_AND_DATA || writeState == A
 assign s_axi_lite_bvalid = (writeState == AWAIT_RESP);
 assign s_axi_lite_bresp = (writeAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 
-
+// PIXEL GENERATION LOGIC
 
 reg [9:0] x;
 reg [8:0] y;

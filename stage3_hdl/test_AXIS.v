@@ -20,14 +20,14 @@ module pixgen_tb;
         $dumpfile("test.vcd");
         $dumpvars(0,pixgen_tb);
 
-        pixel_count = 0;    //new line
-        img_file = $fopen("output.ppm", "w");    //new line
-        $fwrite(img_file, "P3\n640 480\n255\n");    //new line
+        pixel_count = 0; 
+        img_file = $fopen("output.ppm", "w");    
+        $fwrite(img_file, "P3\n640 480\n255\n");   
 
         wait (pixel_count == 640*480);
 
-        $fclose(img_file);    //new line
-        $display("Wrote %0d pixels to output.ppm", pixel_count);    //new line
+        $fclose(img_file);   
+        $display("Wrote %0d pixels to output.ppm", pixel_count);    
 
         $finish;
     end
@@ -117,7 +117,7 @@ module pixgen_tb;
 
     end
     
-    //Write raw RGB pixels to a PPM image file - new block
+    //Write raw RGB pixels to a PPM image file
     always @(posedge clk) begin
         if (rst) begin
             if (p1.ready && p1.valid_int && pixel_count < 640*480) begin
