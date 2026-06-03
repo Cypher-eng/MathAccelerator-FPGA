@@ -124,18 +124,22 @@ always @(posedge s_axi_lite_aclk) begin
                 default: writeState <= AWAIT_WADD_AND_DATA;
             endcase
         end
+        //Received address, waiting for data
         AWAIT_WDATA: if (s_axi_lite_wvalid) begin
             writeData <= s_axi_lite_wdata;
             writeState <= AWAIT_WRITE;
         end
+        //Received data, waiting for address
         AWAIT_WADD: if (s_axi_lite_awvalid) begin
             writeAddr <= s_axi_lite_awaddr[2+:REG_FILE_AWIDTH];
             writeState <= AWAIT_WRITE;
         end
+        //Perform the write
         AWAIT_WRITE: begin
             regfile[writeAddr] <= writeData;
             writeState <= AWAIT_RESP;
         end
+        //Wait to send response
         AWAIT_RESP: if (s_axi_lite_bready) writeState <= AWAIT_WADD_AND_DATA;
         default: writeState <= AWAIT_WADD_AND_DATA;
     endcase
@@ -146,11 +150,11 @@ assign s_axi_lite_wready = (writeState == AWAIT_WADD_AND_DATA || writeState == A
 assign s_axi_lite_bvalid = (writeState == AWAIT_RESP);
 assign s_axi_lite_bresp = (writeAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 
-// =====================================================================
-//                    NEWTON FRACTAL PIXEL ENGINE
-// =====================================================================
+//================================
+// NEWTON FRACTAL PIXEL GENERATOR
+//================================
 
-// ---- Fixed-point + algorithm constants (from newton_fixed.py) -------
+// Fixed-point + algorithm constants (from newton_fixed.py)
 localparam signed [31:0] SCALE    = 4096;          // Q12
 localparam integer       MAX_ITER = 30;
 localparam signed [31:0] TOL      = 123;           // 0.03 in Q12
@@ -164,14 +168,14 @@ localparam signed [31:0] ROOT0R = 4096,  ROOT0I = 0;       //  1.0 + 0i
 localparam signed [31:0] ROOT1R = -2048, ROOT1I = 3547;    // -0.5 + 0.866i
 localparam signed [31:0] ROOT2R = -2048, ROOT2I = -3547;   // -0.5 - 0.866i
 
-// ---- Pixel coordinate counters --------------------------------------
+// Pixel coordinate counters
 reg [9:0] x;
 reg [8:0] y;
 wire first = (x == 0) & (y == 0);
 wire lastx = (x == X_SIZE - 1);
 wire lasty = (y == Y_SIZE - 1);
 
-// ---- State machine --------------------------------------------------
+// State machine
 localparam S_INIT = 2'd0;   // load z0 for the current pixel
 localparam S_ITER = 2'd1;   // perform Newton iterations
 localparam S_DONE = 2'd2;   // hold final colour, wait for packer handshake
@@ -183,7 +187,7 @@ reg  [5:0]         iter;            // iteration counter (0..MAX_ITER)
 reg  [1:0]         root_idx;        // 0,1,2 = converged root; 3 = none
 reg  [7:0]         pr, pg, pb;      // final pixel colour
 
-// Combinational Newton step on the current (zr,zi) -------------------
+// Combinational Newton step on the current (zr,zi)
 wire signed [63:0] zr2 = (zr*zr)/SCALE - (zi*zi)/SCALE;       // Re(z^2)
 wire signed [63:0] zi2 = (2*zr*zi)/SCALE;                     // Im(z^2)
 wire signed [63:0] zr3 = (zr2*zr)/SCALE - (zi2*zi)/SCALE;     // Re(z^3)
@@ -221,7 +225,7 @@ wire [8:0] shade = (256 - (iter*256)/MAX_ITER < 64) ? 9'd64
 wire ready;
 wire valid_int = (state == S_DONE);
 
-// ---- The state machine + pixel advance ------------------------------
+//The state machine + pixel advance
 always @(posedge out_stream_aclk) begin
     if (!periph_resetn) begin
         x <= 0; y <= 0;
@@ -272,7 +276,7 @@ always @(posedge out_stream_aclk) begin
     end
 end
 
-// ---- Colour selection (combinational, based on root_idx + shade) ----
+// Colour selection (combinational, based on root_idx + shade)
 // Root colours: red, teal, blue  (match newton_fixed.py COL)
 reg [7:0] cr, cg, cb;
 always @(*) begin
