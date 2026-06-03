@@ -57,7 +57,6 @@ def tdiv(a, b):
     return -q if (a < 0) != (b < 0) else q
 
 def mul(a, b):
-    """Multiply two Q12 numbers, result in Q12 (matches Verilog (a*b)/SCALE)."""
     return tdiv(a * b, SCALE)
 
 # ---- Instrumentation: track the largest magnitude each variable reaches ----
