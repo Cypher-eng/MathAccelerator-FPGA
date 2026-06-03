@@ -86,15 +86,15 @@ read_view()
 
 # Set the fractal view using intuitive zoom/pan values instead of raw register values
 # zoom: 1.0 = default zoom, 2.0 = 2x zoom in, 0.5 = 2x zoom out
-# pan_x: horizontal shift in complex-plane units, positive = move view to the right
-# pan_y: vertical shift in complex-plane units, positive = move view upward
+# pan_x: horizontal shift, positive = move view to the right
+# pan_y: vertical shift, positive = move view upward
 # pan = 1 means shifting the view by one pixel
 # maxit: maximum Newton iterations
-def set_view(zoom=1.0, pan_x=0.0, pan_y=0.0, maxit=30):
+def set_view(zoom=1.0, pan_x=0, pan_y=0, maxit=30):
 
     # Convert zoom into STEP
     # Bigger zoom means smaller step
-    step = int(DEFAULT_STEP / zoom)
+    step = int(round(DEFAULT_STEP / zoom))
 
     # Prevent step becoming 0
     if step < 1:
@@ -112,6 +112,100 @@ def set_view(zoom=1.0, pan_x=0.0, pan_y=0.0, maxit=30):
     zr0 = centre_r - (X_SIZE // 2) * step
     zi0 = centre_i - (Y_SIZE // 2) * step
 
+    # To make sure we write integers to the registers
+    zr0 = int(round(zr0))
+    zi0 = int(round(zi0))
+    step = int(step)
+    maxit = int(maxit)
+
     write_view(zr0, zi0, step, maxit)
 
     read_view()
+
+
+# Slider controls for Jupyter Notebook UI
+import ipywidgets as widgets
+from IPython.display import display
+
+zoom_slider = widgets.FloatSlider(
+    value=1.0,
+    min=0.5,
+    max=20.0,
+    step=0.1,
+    description='Zoom',
+    continuous_update=False
+)
+
+pan_x_slider = widgets.IntSlider(
+    value=0,
+    min=-320,
+    max=320,
+    step=1,
+    description='Pan X',
+    continuous_update=False
+)
+
+pan_y_slider = widgets.IntSlider(
+    value=0,
+    min=-240,
+    max=240,
+    step=1,
+    description='Pan Y',
+    continuous_update=False
+)
+
+maxit_slider = widgets.IntSlider(
+    value=DEFAULT_MAXIT,
+    min=1,
+    max=63,
+    step=1,
+    description='Max Iter',
+    continuous_update=False
+)
+
+apply_button = widgets.Button(description="Apply View")
+reset_button = widgets.Button(description="Reset View")
+
+output = widgets.Output()
+
+
+def apply_view(button):
+    with output:
+        output.clear_output()
+
+        set_view(
+            zoom=zoom_slider.value,
+            pan_x=pan_x_slider.value,
+            pan_y=pan_y_slider.value,
+            maxit=maxit_slider.value
+        )
+
+
+def reset_view(button):
+    zoom_slider.value = 1.0
+    pan_x_slider.value = 0
+    pan_y_slider.value = 0
+    maxit_slider.value = DEFAULT_MAXIT
+
+    with output:
+        output.clear_output()
+
+        set_view(
+            zoom=1.0,
+            pan_x=0,
+            pan_y=0,
+            maxit=DEFAULT_MAXIT
+        )
+
+
+apply_button.on_click(apply_view)
+reset_button.on_click(reset_view)
+
+display(
+    zoom_slider,
+    pan_x_slider,
+    pan_y_slider,
+    maxit_slider,
+    widgets.HBox([apply_button, reset_button]),
+    output
+)
