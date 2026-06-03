@@ -1,23 +1,3 @@
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 16.05.2024 22:03:08
-// Design Name: 
-// Module Name: test_block_v
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: Stage 0 pixel generator test pattern
-// 
-// Dependencies: packer.v
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
 module pixel_generator #(
     parameter AXI_LITE_ADDR_WIDTH = 8,
     parameter REG_FILE_SIZE = 8
@@ -86,9 +66,8 @@ reg [31:0]                readData, writeData;
 reg [1:0]                 readState  = AWAIT_RADD;
 reg [2:0]                 writeState = AWAIT_WADD_AND_DATA;
 
-// ------------------------------------------------------------
+
 // AXI-Lite register file read logic
-// ------------------------------------------------------------
 always @(posedge s_axi_lite_aclk) begin
     readData <= regfile[readAddr];
 
@@ -128,9 +107,7 @@ assign s_axi_lite_rresp   = (readAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 assign s_axi_lite_rvalid  = (readState == AWAIT_READ);
 assign s_axi_lite_rdata   = readData;
 
-// ------------------------------------------------------------
 // AXI-Lite register file write logic
-// ------------------------------------------------------------
 always @(posedge s_axi_lite_aclk) begin
     if (!axi_resetn) begin
         writeState <= AWAIT_WADD_AND_DATA;
@@ -202,9 +179,7 @@ assign s_axi_lite_wready  = (writeState == AWAIT_WADD_AND_DATA || writeState == 
 assign s_axi_lite_bvalid  = (writeState == AWAIT_RESP);
 assign s_axi_lite_bresp   = (writeAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 
-// ------------------------------------------------------------
-// Simple raster test pattern generator
-// ------------------------------------------------------------
+// Pixel generator
 reg [9:0] x;
 reg [8:0] y;
 
@@ -248,9 +223,7 @@ assign r = x[7:0] + frame;
 assign g = y[7:0] + frame;
 assign b = x[6:0] ^ y[6:0] + frame;
 
-// ------------------------------------------------------------
 // Pack RGB pixels into AXI stream words
-// ------------------------------------------------------------
 packer pixel_packer(
     .aclk(out_stream_aclk),
     .aresetn(periph_resetn),

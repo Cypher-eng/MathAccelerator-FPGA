@@ -20,14 +20,14 @@ module pixgen_tb;
         $dumpfile("test.vcd");
         $dumpvars(0,pixgen_tb);
 
-        pixel_count = 0;
-        img_file = $fopen("output.ppm", "w");
-        $fwrite(img_file, "P3\n640 480\n255\n");
+        pixel_count = 0; 
+        img_file = $fopen("output.ppm", "w");    
+        $fwrite(img_file, "P3\n640 480\n255\n");   
 
-        #ENDTIME;
+        wait (pixel_count == 640*480);
 
-        $fclose(img_file);
-        $display("Wrote %0d pixels to output.ppm", pixel_count);
+        $fclose(img_file);   
+        $display("Wrote %0d pixels to output.ppm", pixel_count);    
 
         $finish;
     end
@@ -43,7 +43,7 @@ module pixgen_tb;
 
     //Instantiate the pixel generator
     wire valid, sof, eol;
-    pixel_generator p1 (
+    pixel_generator_4_top p1 (
         .out_stream_aclk(clk),
         .s_axi_lite_aclk(clk),
         .axi_resetn(rst),
@@ -79,10 +79,19 @@ module pixgen_tb;
         .s_axi_lite_wready(),
         .s_axi_lite_wvalid(1'b0));
 
-    // initialises the registers to zero
+    //new block this initialises the registers to zero
     initial begin
         #20;
         p1.regfile[0] = 32'd0;
+    end
+
+    initial begin //register settings
+    #30;
+
+    p1.regfile[1] = -32'sd5440; // zr0 = -2.0 default -8192
+    p1.regfile[2] = -32'sd4080; // zi0 = -1.5 default -6144
+    p1.regfile[3] =  32'd13; //zoom - default value is 26 for no zoom
+    p1.regfile[4] =  32'd30; //max iterations
     end
 
     //Ready signal generation
@@ -121,7 +130,7 @@ module pixgen_tb;
     always @(posedge clk) begin
         if (rst) begin
             if (p1.ready && p1.valid_int && pixel_count < 640*480) begin
-                $fwrite(img_file, "%0d %0d %0d\n", p1.r, p1.g, p1.b);
+                $fwrite(img_file, "%0d %0d %0d\n", p1.core_r, p1.core_g, p1.core_b);
                 pixel_count = pixel_count + 1;
             end
         end

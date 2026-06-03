@@ -1,40 +1,31 @@
 `timescale 1ns / 1ps
-// ============================================================================
-// tb_view.v  -  Stage 0 simulation testbench
-//
-// Purpose: drive the pixel_generator like the real system would, and capture
-//          every pixel it produces into a plain text file (frame.txt) so we
-//          can turn it into a PNG image with a small Python script.
-//
-// This testbench does NOT modify pixel_generator.v. It just "watches" it.
-// ============================================================================
+// Test bench drives simulates the operation of the pynq board, 
+// captures every pixel it produces into a plain text file so we
+// can turn it into a PNG image a Python script
 module tb_view;
 
-    // -- 1. Clock: a 100 MHz clock = 10 ns period (toggle every 5 ns) --------
+    // A 100 MHz clock = 10 ns period (toggle every 5 ns)
     reg clk = 0;
     always #5 clk = ~clk;
 
-    // -- 2. Reset: held low briefly, then released -------------------------
+    // Reset: held low briefly, then released
     reg rstn = 0;
     initial begin
         rstn = 1'b0;
         #20 rstn = 1'b1;     // release reset after 20 ns
-        // In real hardware, Python writes regfile[0] (the "frame" value) over AXI-Lite.
-        // In pure simulation nothing writes it, so it stays undefined (x) -> black image.
-        // For Stage 0 we just poke a known value directly into the DUT's register:
-        dut.regfile[0] = 32'd0;
+        dut.regfile[0] = 32'd0;// initialise register value with known value (ie 0)
     end
 
-    // -- 3. Wires for the stream output (we don't really use them here) -----
+    // Wires for the stream output
     wire [31:0] tdata;
     wire [3:0]  tkeep;
     wire        tlast, tvalid;
     wire [0:0]  tuser;
 
-    // out_stream_tready = 1 means "the receiver is always ready" (simplest case)
+    // out_stream_tready = 1 means "the receiver is always ready"
     reg tready = 1'b1;
 
-    // -- 4. Instantiate the Device Under Test (DUT) ------------------------
+    // instantiate the pixel generator (device under test)
     pixel_generator dut (
         .out_stream_aclk (clk),
         .s_axi_lite_aclk (clk),
@@ -56,7 +47,7 @@ module tb_view;
         .s_axi_lite_wdata  (32'h0), .s_axi_lite_wready(),  .s_axi_lite_wvalid(1'b0)
     );
 
-    // -- 5. Capture pixels into a text file --------------------------------
+    // Capture pixels into a text file
     // The example advances to the next pixel whenever (ready & valid_int).
     // We reach INTO the DUT (hierarchical reference) to read its internal
     // r, g, b and the advance condition. One line per pixel: "R G B".
@@ -83,7 +74,7 @@ module tb_view;
         end
     end
 
-    // -- 6. Safety timeout so the sim can never hang forever ---------------
+    // Safety timeout so the sim can never hang forever
     initial begin
         #50000000;  // 50 ms of sim time is way more than one frame needs
         $display("Timeout reached (captured %0d pixels)", pixel_count);

@@ -1,15 +1,10 @@
-// ============================================================================
-// newton_cpu.cpp  -  Stage 1: the CPU-only reference & benchmark.
-//
-// Requirement 2.4 of the project says your FPGA accelerator must beat a
-// CPU-only implementation written in C/C++/Cython. THIS is that program.
-//
-// It computes the Newton fractal for f(z) = z^3 - 1 using double-precision
+// Stage 1: the CPU-only reference & benchmark.
+// CPU-only implementation written in C++
+// Computes the Newton fractal for f(z) = z^3 - 1 using double-precision
 // floating point, writes a PPM image, and prints performance metrics.
-//
 // Build:  g++ -O2 -o newton_cpu newton_cpu.cpp
 // Run:    ./newton_cpu
-// ============================================================================
+
 #include <iostream>
 #include <fstream>
 #include <complex>
@@ -19,11 +14,11 @@
 using namespace std;
 using namespace std::chrono;
 
-// ---- Image + algorithm parameters (keep identical to your HW for a fair test)
+// Declare parameters
 const int    WIDTH    = 640;
 const int    HEIGHT   = 480;
 const int    MAX_ITER = 30;       // max Newton steps per pixel
-const double TOL      = 1e-3;     // "close enough to a root" threshold
+const double TOL      = 1e-3;     // tolerance
 
 // The complex-plane window we look at
 const double RE_MIN = -2.0, RE_MAX = 2.0;
@@ -39,13 +34,13 @@ const complex<double> ROOTS[3] = {
 const int COL[3][3] = {{230,57,70}, {42,157,143}, {69,123,157}};
 
 int main() {
-    // 'long long' so we can count total iterations without overflow
+    // long long so we can count total iterations without overflow
     long long total_iters = 0;
 
     // Allocate the image (R,G,B bytes)
     unsigned char* img = new unsigned char[WIDTH * HEIGHT * 3];
 
-    auto start = high_resolution_clock::now();   // ---- start timing ----
+    auto start = high_resolution_clock::now();   //start timing
 
     for (int py = 0; py < HEIGHT; ++py) {
         for (int px = 0; px < WIDTH; ++px) {
@@ -82,19 +77,19 @@ int main() {
         }
     }
 
-    auto end = high_resolution_clock::now();     // ---- stop timing ----
+    auto end = high_resolution_clock::now();     // stop timing
     double secs = duration<double>(end - start).count();
 
-    // ---- Write image as a PPM (simple, no libraries needed) --------------
+    // Write image as a PPM
     ofstream f("newton_cpu.ppm", ios::binary);
     f << "P6\n" << WIDTH << " " << HEIGHT << "\n255\n";
     f.write((char*)img, WIDTH * HEIGHT * 3);
     f.close();
     delete[] img;
 
-    // ---- Report the benchmark metrics ------------------------------------
+    // Report the benchmark metrics 
     long long pixels = (long long)WIDTH * HEIGHT;
-    cout << "=========== CPU benchmark (single frame) ===========\n";
+    cout << "CPU benchmark (single frame)\n";
     cout << "Resolution      : " << WIDTH << " x " << HEIGHT
          << "  (" << pixels << " pixels)\n";
     cout << "Max iterations  : " << MAX_ITER << "\n";

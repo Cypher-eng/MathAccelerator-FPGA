@@ -1,17 +1,7 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// pixel_generator.v  -  Stage 3: Newton fractal, single-pixel state machine.
-//
-// f(z) = z^3 - 1 ,  Newton:  z <- z - (z^3 - 1)/(3 z^2)
-//
-// All arithmetic is Q12 fixed point (SCALE = 4096). The AXI-Lite register
-// file and the packer instantiation are UNCHANGED from the example. Only the
-// pixel-producing logic is replaced with a state machine, because each Newton
-// pixel takes many clock cycles instead of one.
-//
-// Constants come from the Stage 2 golden model (newton_fixed.py) so this
-// produces a bit-for-bit identical image.
-//////////////////////////////////////////////////////////////////////////////////
+// Implements newton raphson iteration to the function f(z) = z^3 - 1 
+// Newton:  z <- z - (z^3 - 1)/(3 z^2)
+// All arithmetic is Q12 fixed point (SCALE = 4096)
 
 module pixel_generator(
 input           out_stream_aclk,
@@ -150,9 +140,7 @@ assign s_axi_lite_wready = (writeState == AWAIT_WADD_AND_DATA || writeState == A
 assign s_axi_lite_bvalid = (writeState == AWAIT_RESP);
 assign s_axi_lite_bresp = (writeAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 
-//================================
 // NEWTON FRACTAL PIXEL GENERATOR
-//================================
 
 // Fixed-point + algorithm constants (from newton_fixed.py)
 localparam signed [31:0] SCALE    = 4096;          // Q12

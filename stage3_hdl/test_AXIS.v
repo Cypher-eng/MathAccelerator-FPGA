@@ -79,7 +79,7 @@ module pixgen_tb;
         .s_axi_lite_wready(),
         .s_axi_lite_wvalid(1'b0));
 
-    //new block this initialises the registers to zero
+    //initialises the registers to zero
     initial begin
         #20;
         p1.regfile[0] = 32'd0;

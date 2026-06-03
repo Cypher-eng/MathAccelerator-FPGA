@@ -1,28 +1,17 @@
 #!/usr/bin/env python3
-# ============================================================================
-# newton_fixed.py  -  Stage 2: the FIXED-POINT golden model.
+# Fixed point golden model.
+# the FPGA cannot synthesise floating point, the verilog must use integers.
+# we use Q12 fixed point so we scale the number by 2^12, 
+# so we can represent a floating point number as a scaled integer.
 #
-# Why this file exists:
-#   FPGAs have no cheap floating-point. The hardware must use plain integers,
-#   scaled by a constant. This file is the EXACT integer algorithm the Verilog
-#   will implement. We debug all the fixed-point pain here in Python (fast to
-#   edit) so that Stage 3 Verilog is a near-mechanical translation.
-#
-# It does THREE jobs:
-#   1. Produce a correct image using only integer math (proves Q12 is enough).
-#   2. INSTRUMENT every intermediate value to measure the bit widths the
-#      hardware registers actually need (so we don't guess and overflow).
-#   3. Handle the f'(z) -> 0 singularity (the "black dots" near z=0).
-#
-# Fixed-point format: Q12  ->  a real value v is stored as the integer
-#   V = round(v * SCALE),  where SCALE = 4096 = 2^12.
-# Multiplying two Q12 numbers gives a Q24 number, so we shift right by 12
-# (i.e. // SCALE) to get back to Q12.
-# ============================================================================
+# - It produces a correct image using only integer math (proves Q12 works)
+# - Tracks every intermediate value to measure the bit widths the hardware 
+#   registers actually need (so we don't guess and overflow).
+# - Handles the f'(z) -> 0 singularity (the "black dots" near z=0).
 import numpy as np
 from PIL import Image
 
-# ---- Parameters: keep IDENTICAL to newton_cpu.cpp for a fair comparison ----
+# Parameters: identical to newton_cpu.cpp
 WIDTH, HEIGHT = 640, 480
 MAX_ITER = 30
 SCALE = 4096                 # 2^12  -> Q12 fixed point
@@ -59,7 +48,7 @@ def tdiv(a, b):
 def mul(a, b):
     return tdiv(a * b, SCALE)
 
-# ---- Instrumentation: track the largest magnitude each variable reaches ----
+# Track the largest magnitude each variable reaches
 maxabs = {}
 def track(name, val):
     v = abs(val)
@@ -133,14 +122,14 @@ for py in range(HEIGHT):
 
 Image.fromarray(img).save("newton_fixed.png")
 
-# ---- Report measured bit widths --------------------------------------------
+# Report measured bit widths
 def bits_signed(v):
     """Minimum signed bit width to hold values in [-v, v]."""
     if v == 0:
         return 1
     return int(np.ceil(np.log2(v + 1))) + 1   # +1 for sign
 
-print("============ Stage 2: fixed-point (Q12, SCALE=4096) ============")
+print("Stage 2: fixed-point (Q12, SCALE=4096)")
 print(f"Image: {WIDTH}x{HEIGHT}, MAX_ITER={MAX_ITER}, TOL(Q12)={TOL}")
 print(f"Non-converging (black) pixels: {black_pixels}")
 print(f"Total Newton iterations: {total_iters}")
