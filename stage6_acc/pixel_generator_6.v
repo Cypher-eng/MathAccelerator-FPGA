@@ -79,7 +79,7 @@ input           s_axi_lite_wvalid
 
 localparam X_SIZE = 640;
 localparam Y_SIZE = 480;
-parameter  LANES  = 2;             // number of parallel Newton engines
+parameter  LANES  = 1;             // number of parallel Newton engines
 parameter  REG_FILE_SIZE = 8;
 localparam REG_FILE_AWIDTH = $clog2(REG_FILE_SIZE);
 parameter  AXI_LITE_ADDR_WIDTH = 8;
