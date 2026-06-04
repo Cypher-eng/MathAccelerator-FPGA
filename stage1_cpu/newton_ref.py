@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-# ============================================================================
 # newton_ref.py  -  Stage 1: golden reference + (slow) Python benchmark.
-#
 # Two jobs:
-#   1. GOLDEN MODEL: the trusted "correct" image. Later, when your Verilog
-#      produces an image, you compare it against THIS to check correctness.
-#   2. A benchmark data point that shows why plain Python is NOT a fair CPU
-#      baseline (it is ~50-100x slower than C++), which is exactly why the
-#      project specifies C/C++/Cython.
-# ============================================================================
+#   1. GOLDEN MODEL: the trusted "correct" image. This is used to compare with the verilog
+#      implementation to check accuracy
+#   2. A benchmark data point that shows why Python is NOT a fair CPU
+#      baseline (it's much slower than C++), which is why we use C++ as the benchmark
 import time
 import numpy as np
 from PIL import Image
@@ -57,7 +53,7 @@ secs = time.perf_counter() - t0
 Image.fromarray(img).save("newton_ref.png")
 
 pixels = WIDTH * HEIGHT
-print("=========== Python reference (single frame) ===========")
+print("Python reference (single frame)")
 print(f"Resolution      : {WIDTH} x {HEIGHT}  ({pixels} pixels)")
 print(f"Time for 1 frame: {secs*1000:.1f} ms")
 print(f"Frame rate      : {1/secs:.3f} FPS")

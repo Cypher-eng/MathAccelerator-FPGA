@@ -1,15 +1,11 @@
 `timescale 1ns / 1ps
-// ============================================================================
-// tb_newton.v  -  Stage 3 testbench.
-//
-// Difference from Stage 0: each Newton pixel takes MANY clock cycles, so we
-// must capture a pixel only when it is actually produced -- i.e. on the
-// handshake (dut.ready & dut.valid_int) -- not on every clock edge.
-// ============================================================================
+// tb_newton.v  -  Stage 3 testbench
+// Each Newton pixel takes MANY clock cycles, so we must capture a pixel only when it is actually produced
+// i.e. on the handshake (dut.ready & dut.valid_int), not on every clock edge.
 module tb_newton;
 
     reg clk = 0;
-    always #5 clk = ~clk;            // 100 MHz
+    always #5 clk = ~clk; // 100 MHz
 
     reg rstn = 0;
     initial begin
@@ -21,7 +17,7 @@ module tb_newton;
     wire [3:0]  tkeep;
     wire        tlast, tvalid;
     wire [0:0]  tuser;
-    reg tready = 1'b1;               // receiver always ready
+    reg tready = 1'b1; // receiver always ready
 
     pixel_generator dut (
         .out_stream_aclk (clk),

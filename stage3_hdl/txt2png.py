@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# txt2png.py  -  Stage 0: turn the captured pixels into a viewable image.
+# Turn the captured pixels into a viewable image.
 # Reads frame.txt (one "R G B" line per pixel, raster order) -> output.png
 from PIL import Image
 

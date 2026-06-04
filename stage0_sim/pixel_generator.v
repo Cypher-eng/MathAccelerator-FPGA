@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -50,6 +51,40 @@ module pixel_generator #(
     output [1:0]    s_axi_lite_bresp,
     output          s_axi_lite_bvalid,
 
+=======
+module pixel_generator #(
+    parameter AXI_LITE_ADDR_WIDTH = 8,
+    parameter REG_FILE_SIZE = 8
+)(
+    input           out_stream_aclk,
+    input           s_axi_lite_aclk,
+    input           axi_resetn,
+    input           periph_resetn,
+
+    // Stream output
+    output [31:0]   out_stream_tdata,
+    output [3:0]    out_stream_tkeep,
+    output          out_stream_tlast,
+    input           out_stream_tready,
+    output          out_stream_tvalid,
+    output [0:0]    out_stream_tuser, 
+
+    // AXI-Lite read address channel
+    input [AXI_LITE_ADDR_WIDTH-1:0] s_axi_lite_araddr,
+    output          s_axi_lite_arready,
+    input           s_axi_lite_arvalid,
+
+    // AXI-Lite write address channel
+    input [AXI_LITE_ADDR_WIDTH-1:0] s_axi_lite_awaddr,
+    output          s_axi_lite_awready,
+    input           s_axi_lite_awvalid,
+
+    // AXI-Lite write response channel
+    input           s_axi_lite_bready,
+    output [1:0]    s_axi_lite_bresp,
+    output          s_axi_lite_bvalid,
+
+>>>>>>> 5def25ade390a680017e5d8885e5b8531b737f1c
     // AXI-Lite read data channel
     output [31:0]   s_axi_lite_rdata,
     input           s_axi_lite_rready,
@@ -86,9 +121,14 @@ reg [31:0]                readData, writeData;
 reg [1:0]                 readState  = AWAIT_RADD;
 reg [2:0]                 writeState = AWAIT_WADD_AND_DATA;
 
+<<<<<<< HEAD
 // ------------------------------------------------------------
 // AXI-Lite register file read logic
 // ------------------------------------------------------------
+=======
+
+// AXI-Lite register file read logic
+>>>>>>> 5def25ade390a680017e5d8885e5b8531b737f1c
 always @(posedge s_axi_lite_aclk) begin
     readData <= regfile[readAddr];
 
@@ -128,9 +168,13 @@ assign s_axi_lite_rresp   = (readAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 assign s_axi_lite_rvalid  = (readState == AWAIT_READ);
 assign s_axi_lite_rdata   = readData;
 
+<<<<<<< HEAD
 // ------------------------------------------------------------
 // AXI-Lite register file write logic
 // ------------------------------------------------------------
+=======
+// AXI-Lite register file write logic
+>>>>>>> 5def25ade390a680017e5d8885e5b8531b737f1c
 always @(posedge s_axi_lite_aclk) begin
     if (!axi_resetn) begin
         writeState <= AWAIT_WADD_AND_DATA;
@@ -202,9 +246,13 @@ assign s_axi_lite_wready  = (writeState == AWAIT_WADD_AND_DATA || writeState == 
 assign s_axi_lite_bvalid  = (writeState == AWAIT_RESP);
 assign s_axi_lite_bresp   = (writeAddr < REG_FILE_SIZE) ? AXI_OK : AXI_ERR;
 
+<<<<<<< HEAD
 // ------------------------------------------------------------
 // Simple raster test pattern generator
 // ------------------------------------------------------------
+=======
+// Pixel generator
+>>>>>>> 5def25ade390a680017e5d8885e5b8531b737f1c
 reg [9:0] x;
 reg [8:0] y;
 
@@ -246,11 +294,17 @@ wire [7:0] r, g, b;
 
 assign r = x[7:0] + frame;
 assign g = y[7:0] + frame;
+<<<<<<< HEAD
 assign b = x[6:0] + y[6:0] + frame;
 
 // ------------------------------------------------------------
 // Pack RGB pixels into AXI stream words
 // ------------------------------------------------------------
+=======
+assign b = x[6:0] ^ y[6:0] + frame;
+
+// Pack RGB pixels into AXI stream words
+>>>>>>> 5def25ade390a680017e5d8885e5b8531b737f1c
 packer pixel_packer(
     .aclk(out_stream_aclk),
     .aresetn(periph_resetn),
