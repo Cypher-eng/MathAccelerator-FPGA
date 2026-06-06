@@ -50,11 +50,11 @@ output [5:0]    debug_iter,
 output          debug_iter_valid,
 
 //AXI-Lite S
-input [AXI_LITE_ADDR_WIDTH-1:0]     s_axi_lite_araddr,
+input [7:0]     s_axi_lite_araddr,
 output          s_axi_lite_arready,
 input           s_axi_lite_arvalid,
 
-input [AXI_LITE_ADDR_WIDTH-1:0]     s_axi_lite_awaddr,
+input [7:0]     s_axi_lite_awaddr,
 output          s_axi_lite_awready,
 input           s_axi_lite_awvalid,
 
