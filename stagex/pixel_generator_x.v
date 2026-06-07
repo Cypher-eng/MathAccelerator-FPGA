@@ -23,7 +23,7 @@ module pixel_generator (
     // =========================================================================
     parameter WIDTH = 64;
     parameter SCALE = 12;
-    parameter DIV_LATENCY = 68; // 严格匹配你 div_gen_0 的 Latency
+    parameter DIV_LATENCY = 68; 
     
     // Sign-extended default fallbacks
     wire signed [WIDTH-1:0] ZR0   = (reg_ZR0   == 0) ? -64'd8192 : $signed({{32{reg_ZR0[31]}}, reg_ZR0});
@@ -135,11 +135,11 @@ module pixel_generator (
         st3_valid <= st2_valid; st3_x <= st2_x; st3_y <= st2_y; st3_zr <= st2_zr; st3_zi <= st2_zi; st3_iter <= st2_iter;
         m3_den   <= 3 * (q_mult(m2_fpr, m2_fpr) + q_mult(m2_fpi, m2_fpi));
         
-        // 关键：左移 SCALE 保留 Q12 除法精度
+      
         m3_num_r <= (q_mult(m2_zr3 - 64'd4096, m2_fpr * 3) + q_mult(m2_zi3, m2_fpi * 3)) <<< SCALE;
         m3_num_i <= (q_mult(m2_zi3, m2_fpr * 3) - q_mult(m2_zr3 - 64'd4096, m2_fpi * 3)) <<< SCALE;
         
-        // 奇点检查
+
         st3_black <= (3 * (q_mult(m2_fpr, m2_fpr) + q_mult(m2_fpi, m2_fpi)) == 0);
     end
 
