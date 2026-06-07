@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 module divider_seq #(
-    parameter WIDTH = 40
+    parameter WIDTH = 64  
 )(
     input  wire clk,
     input  wire rst,
@@ -17,7 +17,10 @@ module divider_seq #(
     reg [WIDTH-1:0] b_reg;
     reg [WIDTH-1:0] q_reg;
     reg [WIDTH:0]   acc;
-    reg [5:0]       count;
+    
+    // 【修复点 1】6位只能存到63，WIDTH=64时必须升级到7位
+    reg [6:0]       count; 
+    
     reg             sign_diff;
 
     always @(posedge clk) begin
