@@ -19,7 +19,6 @@ module pixel_generator (
 );
 
     // =========================================================================
-    // PARAMETERS (Strictly aligned with Study Guide)
     // =========================================================================
     parameter WIDTH = 64;   // 64-bit to safely hold 57-bit intermediates
     parameter SCALE = 12;   // Q12, 4096
