@@ -50,11 +50,11 @@ output [5:0]    debug_iter,
 output          debug_iter_valid,
 
 //AXI-Lite S
-input [AXI_LITE_ADDR_WIDTH-1:0]     s_axi_lite_araddr,
+input [7:0]     s_axi_lite_araddr,
 output          s_axi_lite_arready,
 input           s_axi_lite_arvalid,
 
-input [AXI_LITE_ADDR_WIDTH-1:0]     s_axi_lite_awaddr,
+input [7:0]     s_axi_lite_awaddr,
 output          s_axi_lite_awready,
 input           s_axi_lite_awvalid,
 
@@ -202,8 +202,8 @@ localparam S_INIT = 2'd0;
 localparam S_ITER = 2'd1;
 localparam S_DONE = 2'd2;
 
-reg  signed [63:0] zr   [0:LANES-1];
-reg  signed [63:0] zi   [0:LANES-1];
+reg  signed [59:0] zr   [0:LANES-1];
+reg  signed [59:0] zi   [0:LANES-1];
 reg  [5:0]         iter [0:LANES-1];
 reg  [1:0]         ridx [0:LANES-1];
 reg  [1:0]         lst  [0:LANES-1];   // lane state
@@ -247,21 +247,21 @@ genvar g;
 generate
   for (g = 0; g < LANES; g = g + 1) begin : lane
     // combinational Newton step on this lane's (zr[g], zi[g])
-    wire signed [63:0] zr2 = (zr[g]*zr[g])/SCALE - (zi[g]*zi[g])/SCALE;
-    wire signed [63:0] zi2 = (2*zr[g]*zi[g])/SCALE;
-    wire signed [63:0] zr3 = (zr2*zr[g])/SCALE - (zi2*zi[g])/SCALE;
-    wire signed [63:0] zi3 = (zr2*zi[g])/SCALE + (zi2*zr[g])/SCALE;
-    wire signed [63:0] fr  = zr3 - SCALE;
-    wire signed [63:0] fi  = zi3;
-    wire signed [63:0] fpr = 3*zr2;
-    wire signed [63:0] fpi = 3*zi2;
-    wire signed [63:0] denom = (fpr*fpr)/SCALE + (fpi*fpi)/SCALE;
-    wire signed [63:0] numr  = (fr*fpr)/SCALE + (fi*fpi)/SCALE;
-    wire signed [63:0] numi  = (fi*fpr)/SCALE - (fr*fpi)/SCALE;
-    wire signed [63:0] dr = (denom == 0) ? 64'sd0 : (numr*SCALE)/denom;
-    wire signed [63:0] di = (denom == 0) ? 64'sd0 : (numi*SCALE)/denom;
-    wire signed [63:0] zr_n = zr[g] - dr;
-    wire signed [63:0] zi_n = zi[g] - di;
+    wire signed [59:0] zr2 = (zr[g]*zr[g])/SCALE - (zi[g]*zi[g])/SCALE;
+    wire signed [59:0] zi2 = (2*zr[g]*zi[g])/SCALE;
+    wire signed [59:0] zr3 = (zr2*zr[g])/SCALE - (zi2*zi[g])/SCALE;
+    wire signed [59:0] zi3 = (zr2*zi[g])/SCALE + (zi2*zr[g])/SCALE;
+    wire signed [59:0] fr  = zr3 - SCALE;
+    wire signed [59:0] fi  = zi3;
+    wire signed [59:0] fpr = 3*zr2;
+    wire signed [59:0] fpi = 3*zi2;
+    wire signed [59:0] denom = (fpr*fpr)/SCALE + (fpi*fpi)/SCALE;
+    wire signed [59:0] numr  = (fr*fpr)/SCALE + (fi*fpi)/SCALE;
+    wire signed [59:0] numi  = (fi*fpr)/SCALE - (fr*fpi)/SCALE;
+    wire signed [59:0] dr = (denom == 0) ? 64'sd0 : (numr*SCALE)/denom;
+    wire signed [59:0] di = (denom == 0) ? 64'sd0 : (numi*SCALE)/denom;
+    wire signed [59:0] zr_n = zr[g] - dr;
+    wire signed [59:0] zi_n = zi[g] - di;
 
     wire c0 = (zr_n-ROOT0R < TOL)&&(zr_n-ROOT0R > -TOL)&&(zi_n-ROOT0I < TOL)&&(zi_n-ROOT0I > -TOL);
     wire c1 = (zr_n-ROOT1R < TOL)&&(zr_n-ROOT1R > -TOL)&&(zi_n-ROOT1I < TOL)&&(zi_n-ROOT1I > -TOL);
