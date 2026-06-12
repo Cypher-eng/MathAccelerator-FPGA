@@ -1,74 +1,74 @@
 `timescale 1ns / 1ps
 
+
 module pixel_generator (
     input  wire        out_stream_aclk,
     input  wire        out_stream_aresetn,
 
-    // AXI-Stream interface to VDMA
+    // AXI-Stream -> VDMA S2MM
     output wire [23:0] out_stream_tdata,
     output wire        out_stream_tvalid,
     input  wire        out_stream_tready,
     output wire        out_stream_tuser,    // SOF
     output wire        out_stream_tlast,    // EOL
 
-    // AXI-Lite Regfile / BD constants
     input  wire [31:0] reg_ZR0,
     input  wire [31:0] reg_ZI0,
     input  wire [31:0] reg_STEP,
     input  wire [31:0] reg_MAXIT
 );
 
-    // =========================================================================
-    // Architecture constants
-    // =========================================================================
-    parameter WIDTH = 64;
-    parameter SCALE = 12;
-    parameter DIV_LATENCY = 68;
-    parameter CHUNK_SIZE = DIV_LATENCY + 4; // 72
+  
+    parameter WIDTH       = 64;
+    parameter SCALE       = 12;
+    parameter DIV_LATENCY = 68;   
 
-    wire signed [WIDTH-1:0] ZR0   = (reg_ZR0   == 0) ? -64'sd8192 : $signed({{32{reg_ZR0[31]}}, reg_ZR0});
-    wire signed [WIDTH-1:0] ZI0   = (reg_ZI0   == 0) ? -64'sd6144 : $signed({{32{reg_ZI0[31]}}, reg_ZI0});
+    localparam PRE_STAGES  = 15;                                     // S0..S14
+    localparam POST_STAGES = 1;                                      // E1
+    localparam CHUNK_SIZE  = PRE_STAGES + DIV_LATENCY + POST_STAGES; // 84
+    localparam SR_DEPTH    = DIV_LATENCY;
+
+    localparam [10:0] CHUNK11 = CHUNK_SIZE;
+    localparam [18:0] CHUNK19 = CHUNK_SIZE;
+
+    localparam HI = WIDTH + SCALE - 1;   
+    localparam LO = SCALE;              
+
+    localparam signed [WIDTH-1:0] ONE_Q = 64'sd4096;   // 1.0 in Q12
+
+    wire signed [WIDTH-1:0] ZR0   = (reg_ZR0   == 0) ? -64'sd8192 : $signed({{32{reg_ZR0[31]}},  reg_ZR0});
+    wire signed [WIDTH-1:0] ZI0   = (reg_ZI0   == 0) ? -64'sd6144 : $signed({{32{reg_ZI0[31]}},  reg_ZI0});
     wire signed [WIDTH-1:0] STEP  = (reg_STEP  == 0) ?  64'sd26   : $signed({{32{reg_STEP[31]}}, reg_STEP});
     wire [31:0]             MAXIT = (reg_MAXIT == 0) ?  32'd30    : reg_MAXIT;
 
+  
+    wire signed [23:0] STEP_S = STEP[23:0];
+
     wire CE = out_stream_tready;
 
-    function signed [WIDTH-1:0] q_mult;
-        input signed [WIDTH-1:0] a;
-        input signed [WIDTH-1:0] b;
-        reg signed [2*WIDTH-1:0] full;
-        begin
-            full = a * b;
-            q_mult = full[WIDTH+SCALE-1 : SCALE];
-        end
-    endfunction
 
-    // =========================================================================
-    // Batch controller
-    // No modulo/divide for x/y. Use registered coordinate counters.
-    // =========================================================================
-    reg [6:0]  slot;
-    reg [5:0]  trip;
-    reg [18:0] pixel_idx;
+    reg [6:0]  slot       = 7'd0;
+    reg [5:0]  trip       = 6'd0;
+    reg [18:0] pixel_idx  = 19'd0;
 
-    reg [9:0] base_x;
-    reg [9:0] base_y;
-    reg [9:0] inject_x_r;
-    reg [9:0] inject_y_r;
+    reg [9:0]  base_x     = 10'd0;
+    reg [9:0]  base_y     = 10'd0;
+    reg [9:0]  inject_x_r = 10'd0;
+    reg [9:0]  inject_y_r = 10'd0;
 
-    wire [18:0] inject_idx = pixel_idx + slot;
+    wire [18:0] inject_idx = pixel_idx + {12'd0, slot};
     wire [9:0]  inject_x   = inject_x_r;
     wire [9:0]  inject_y   = inject_y_r;
     wire        inject_val = (inject_idx < 19'd307200);
 
-    wire [10:0] base_x_plus_chunk = {1'b0, base_x} + 11'd72;
+    wire [10:0] base_x_plus_chunk = {1'b0, base_x} + CHUNK11;
+    wire [10:0] base_x_wrap       = base_x_plus_chunk - 11'd640;
 
     always @(posedge out_stream_aclk) begin
         if (!out_stream_aresetn) begin
             slot       <= 7'd0;
             trip       <= 6'd0;
             pixel_idx  <= 19'd0;
-
             base_x     <= 10'd0;
             base_y     <= 10'd0;
             inject_x_r <= 10'd0;
@@ -87,12 +87,12 @@ module pixel_generator (
                         inject_x_r <= 10'd0;
                         inject_y_r <= 10'd0;
                     end else begin
-                        pixel_idx <= pixel_idx + CHUNK_SIZE;
+                        pixel_idx <= pixel_idx + CHUNK19;
 
                         if (base_x_plus_chunk >= 11'd640) begin
-                            base_x     <= base_x_plus_chunk - 11'd640;
+                            base_x     <= base_x_wrap[9:0];
                             base_y     <= base_y + 1'b1;
-                            inject_x_r <= base_x_plus_chunk - 11'd640;
+                            inject_x_r <= base_x_wrap[9:0];
                             inject_y_r <= base_y + 1'b1;
                         end else begin
                             base_x     <= base_x_plus_chunk[9:0];
@@ -120,242 +120,229 @@ module pixel_generator (
         end
     end
 
-    // =========================================================================
-    // Feedback wires
-    // =========================================================================
-    wire        fb_val;
-    wire [18:0] fb_idx;
-    wire signed [WIDTH-1:0] fb_zr, fb_zi;
-    wire [31:0] fb_iter;
-    wire        fb_conv;
-    wire [23:0] fb_col;
-
     wire is_trip0 = (trip == 6'd0);
 
-    // =========================================================================
-    // STAGE 0: select new pixel or feedback pixel only
-    // No heavy arithmetic here.
-    // =========================================================================
-    reg        st0_val;
-    reg [18:0] st0_idx;
-    reg [9:0]  st0_x;
-    reg [9:0]  st0_y;
-    reg        st0_from_new;
+    wire                    fb_val;
+    wire [18:0]             fb_idx;
+    wire                    fb_eol;
+    wire signed [WIDTH-1:0] fb_zr, fb_zi;
+    wire [31:0]             fb_iter;
+    wire                    fb_conv;
+    wire [23:0]             fb_col;
 
-    reg signed [WIDTH-1:0] st0_fb_zr;
-    reg signed [WIDTH-1:0] st0_fb_zi;
-    reg [31:0] st0_iter;
-    reg        st0_conv;
-    reg [23:0] st0_col;
+
+    reg [PRE_STAGES-1:0]    ctx_val_v  = {PRE_STAGES{1'b0}};   
+    reg [PRE_STAGES*19-1:0] ctx_idx_v  = {PRE_STAGES*19{1'b0}};
+    reg [PRE_STAGES-1:0]    ctx_eol_v  = {PRE_STAGES{1'b0}};
+    reg [PRE_STAGES*32-1:0] ctx_iter_v = {PRE_STAGES*32{1'b0}};
+    reg [PRE_STAGES-1:0]    ctx_conv_v = {PRE_STAGES{1'b0}};
+    reg [PRE_STAGES*24-1:0] ctx_col_v  = {PRE_STAGES*24{1'b0}};
+    reg [PRE_STAGES-1:0]    ctx_fin_v  = {PRE_STAGES{1'b0}};
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            st0_val      <= 1'b0;
-            st0_idx      <= 19'd0;
-            st0_x        <= 10'd0;
-            st0_y        <= 10'd0;
-            st0_from_new <= 1'b0;
+        if (!out_stream_aresetn)
+            ctx_val_v <= {PRE_STAGES{1'b0}};
+        else if (CE)
+            ctx_val_v <= {ctx_val_v[PRE_STAGES-2:0], (is_trip0 ? inject_val : fb_val)};
+    end
 
-            st0_fb_zr    <= 64'sd0;
-            st0_fb_zi    <= 64'sd0;
-            st0_iter     <= 32'd0;
-            st0_conv     <= 1'b0;
-            st0_col      <= 24'd0;
-        end else if (CE) begin
-            st0_val      <= is_trip0 ? inject_val : fb_val;
-            st0_idx      <= is_trip0 ? inject_idx : fb_idx;
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            ctx_idx_v  <= {ctx_idx_v [(PRE_STAGES-1)*19-1:0], (is_trip0 ? inject_idx            : fb_idx)};
+            ctx_eol_v  <= {ctx_eol_v [PRE_STAGES-2:0],        (is_trip0 ? (inject_x == 10'd639) : fb_eol)};
+            ctx_iter_v <= {ctx_iter_v[(PRE_STAGES-1)*32-1:0], (is_trip0 ? 32'd0                 : fb_iter)};
+            ctx_conv_v <= {ctx_conv_v[PRE_STAGES-2:0],        (is_trip0 ? 1'b0                  : fb_conv)};
+            ctx_col_v  <= {ctx_col_v [(PRE_STAGES-1)*24-1:0], (is_trip0 ? 24'd0                 : fb_col)};
+            ctx_fin_v  <= {ctx_fin_v [PRE_STAGES-2:0],        (trip == MAXIT[5:0] - 1'b1)};  
+        end
+    end
+
+    wire                    pre_val  = ctx_val_v [PRE_STAGES-1];
+    wire [18:0]             pre_idx  = ctx_idx_v [PRE_STAGES*19-1 -: 19];
+    wire                    pre_eol  = ctx_eol_v [PRE_STAGES-1];
+    wire [31:0]             pre_iter = ctx_iter_v[PRE_STAGES*32-1 -: 32];
+    wire                    pre_conv = ctx_conv_v[PRE_STAGES-1];
+    wire [23:0]             pre_col  = ctx_col_v [PRE_STAGES*24-1 -: 24];
+    wire                    pre_fin  = ctx_fin_v [PRE_STAGES-1];
+
+  
+    reg                    st0_from_new = 1'b0;
+    reg [9:0]              st0_x        = 10'd0;
+    reg [9:0]              st0_y        = 10'd0;
+    reg signed [WIDTH-1:0] st0_fb_zr    = 64'sd0;
+    reg signed [WIDTH-1:0] st0_fb_zi    = 64'sd0;
+
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            st0_from_new <= is_trip0;
             st0_x        <= inject_x;
             st0_y        <= inject_y;
-            st0_from_new <= is_trip0;
-
             st0_fb_zr    <= fb_zr;
             st0_fb_zi    <= fb_zi;
-            st0_iter     <= is_trip0 ? 32'd0 : fb_iter;
-            st0_conv     <= is_trip0 ? 1'b0 : fb_conv;
-            st0_col      <= is_trip0 ? 24'd0 : fb_col;
         end
     end
 
-    // =========================================================================
-    // STAGE 1: compute zr/zi only, registered
-    // This breaks slot/x/y -> multiplier timing path.
-    // =========================================================================
-    reg        st1_val;
-    reg [18:0] st1_idx;
-    reg signed [WIDTH-1:0] st1_zr;
-    reg signed [WIDTH-1:0] st1_zi;
-    reg [31:0] st1_iter;
-    reg        st1_conv;
-    reg [23:0] st1_col;
+ 
+    reg signed [34:0]      s1_xs       = 35'sd0;
+    reg signed [34:0]      s1_ys       = 35'sd0;
+    reg                    s1_from_new = 1'b0;
+    reg signed [WIDTH-1:0] s1_fb_zr    = 64'sd0;
+    reg signed [WIDTH-1:0] s1_fb_zi    = 64'sd0;
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            st1_val  <= 1'b0;
-            st1_idx  <= 19'd0;
-            st1_zr   <= 64'sd0;
-            st1_zi   <= 64'sd0;
-            st1_iter <= 32'd0;
-            st1_conv <= 1'b0;
-            st1_col  <= 24'd0;
-        end else if (CE) begin
-            st1_val  <= st0_val;
-            st1_idx  <= st0_idx;
-
-            st1_zr   <= st0_from_new ? (ZR0 + $signed({54'd0, st0_x}) * STEP) : st0_fb_zr;
-            st1_zi   <= st0_from_new ? (ZI0 + $signed({54'd0, st0_y}) * STEP) : st0_fb_zi;
-
-            st1_iter <= st0_iter;
-            st1_conv <= st0_conv;
-            st1_col  <= st0_col;
+        if (CE) begin
+            s1_xs       <= $signed({1'b0, st0_x}) * STEP_S;
+            s1_ys       <= $signed({1'b0, st0_y}) * STEP_S;
+            s1_from_new <= st0_from_new;
+            s1_fb_zr    <= st0_fb_zr;
+            s1_fb_zi    <= st0_fb_zi;
         end
     end
 
-    // =========================================================================
-    // STAGE 2: multiplier tree
-    // =========================================================================
-    reg        st2_val;
-    reg [18:0] st2_idx;
-    reg signed [WIDTH-1:0] st2_zr;
-    reg signed [WIDTH-1:0] st2_zi;
-    reg [31:0] st2_iter;
-    reg        st2_conv;
-    reg [23:0] st2_col;
+ 
+    localparam ZQN = PRE_STAGES - 2;   // 13
 
-    reg signed [WIDTH-1:0] m1_zr_sq;
-    reg signed [WIDTH-1:0] m1_zi_sq;
-    reg signed [WIDTH-1:0] m1_zr_zi;
+    reg [ZQN*WIDTH-1:0] zq_zr_v = {ZQN*WIDTH{1'b0}};
+    reg [ZQN*WIDTH-1:0] zq_zi_v = {ZQN*WIDTH{1'b0}};
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            st2_val   <= 1'b0;
-            st2_idx   <= 19'd0;
-            st2_zr    <= 64'sd0;
-            st2_zi    <= 64'sd0;
-            st2_iter  <= 32'd0;
-            st2_conv  <= 1'b0;
-            st2_col   <= 24'd0;
-
-            m1_zr_sq  <= 64'sd0;
-            m1_zi_sq  <= 64'sd0;
-            m1_zr_zi  <= 64'sd0;
-        end else if (CE) begin
-            st2_val   <= st1_val;
-            st2_idx   <= st1_idx;
-            st2_zr    <= st1_zr;
-            st2_zi    <= st1_zi;
-            st2_iter  <= st1_iter;
-            st2_conv  <= st1_conv;
-            st2_col   <= st1_col;
-
-            m1_zr_sq  <= q_mult(st1_zr, st1_zr);
-            m1_zi_sq  <= q_mult(st1_zi, st1_zi);
-            m1_zr_zi  <= q_mult(st1_zr, st1_zi);
+        if (CE) begin
+            zq_zr_v <= {zq_zr_v[(ZQN-1)*WIDTH-1:0],
+                        (s1_from_new ? (ZR0 + {{(WIDTH-35){s1_xs[34]}}, s1_xs}) : s1_fb_zr)};
+            zq_zi_v <= {zq_zi_v[(ZQN-1)*WIDTH-1:0],
+                        (s1_from_new ? (ZI0 + {{(WIDTH-35){s1_ys[34]}}, s1_ys}) : s1_fb_zi)};
         end
     end
 
-    // =========================================================================
-    // STAGE 3: cubic and derivative terms
-    // =========================================================================
-    reg        st3_val;
-    reg [18:0] st3_idx;
-    reg signed [WIDTH-1:0] st3_zr;
-    reg signed [WIDTH-1:0] st3_zi;
-    reg [31:0] st3_iter;
-    reg        st3_conv;
-    reg [23:0] st3_col;
+    wire signed [WIDTH-1:0] zr_s2  = $signed(zq_zr_v[WIDTH-1:0]);            
+    wire signed [WIDTH-1:0] zi_s2  = $signed(zq_zi_v[WIDTH-1:0]);
+    wire signed [WIDTH-1:0] zr_s6  = $signed(zq_zr_v[5*WIDTH-1 -: WIDTH]);  
+    wire signed [WIDTH-1:0] zi_s6  = $signed(zq_zi_v[5*WIDTH-1 -: WIDTH]);
+    wire signed [WIDTH-1:0] zr_s14 = $signed(zq_zr_v[ZQN*WIDTH-1 -: WIDTH]); 
+    wire signed [WIDTH-1:0] zi_s14 = $signed(zq_zi_v[ZQN*WIDTH-1 -: WIDTH]);
 
-    reg signed [WIDTH-1:0] m2_zr3;
-    reg signed [WIDTH-1:0] m2_zi3;
-    reg signed [WIDTH-1:0] m2_fpr;
-    reg signed [WIDTH-1:0] m2_fpi;
+
+    reg signed [2*WIDTH-1:0] s3_zr2 = 0, s3_zi2 = 0, s3_zrzi = 0;
+    reg signed [2*WIDTH-1:0] s4_zr2 = 0, s4_zi2 = 0, s4_zrzi = 0;
+    reg signed [2*WIDTH-1:0] s5_zr2 = 0, s5_zi2 = 0, s5_zrzi = 0;
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            st3_val  <= 1'b0;
-            st3_idx  <= 19'd0;
-            st3_zr   <= 64'sd0;
-            st3_zi   <= 64'sd0;
-            st3_iter <= 32'd0;
-            st3_conv <= 1'b0;
-            st3_col  <= 24'd0;
-
-            m2_zr3   <= 64'sd0;
-            m2_zi3   <= 64'sd0;
-            m2_fpr   <= 64'sd0;
-            m2_fpi   <= 64'sd0;
-        end else if (CE) begin
-            st3_val  <= st2_val;
-            st3_idx  <= st2_idx;
-            st3_zr   <= st2_zr;
-            st3_zi   <= st2_zi;
-            st3_iter <= st2_iter;
-            st3_conv <= st2_conv;
-            st3_col  <= st2_col;
-
-            m2_fpr <= m1_zr_sq - m1_zi_sq;
-            m2_fpi <= m1_zr_zi <<< 1;
-
-            m2_zr3 <= q_mult(m1_zr_sq - m1_zi_sq, st2_zr)
-                    - q_mult(m1_zr_zi <<< 1, st2_zi);
-
-            m2_zi3 <= q_mult(m1_zr_sq - m1_zi_sq, st2_zi)
-                    + q_mult(m1_zr_zi <<< 1, st2_zr);
+        if (CE) begin
+            s3_zr2  <= zr_s2 * zr_s2;
+            s3_zi2  <= zi_s2 * zi_s2;
+            s3_zrzi <= zr_s2 * zi_s2;
+            s4_zr2  <= s3_zr2;   s4_zi2  <= s3_zi2;   s4_zrzi <= s3_zrzi;
+            s5_zr2  <= s4_zr2;   s5_zi2  <= s4_zi2;   s5_zrzi <= s4_zrzi;
         end
     end
 
-    // =========================================================================
-    // STAGE 4: divider inputs
-    // =========================================================================
-    reg        st4_val;
-    reg [18:0] st4_idx;
-    reg signed [WIDTH-1:0] st4_zr;
-    reg signed [WIDTH-1:0] st4_zi;
-    reg [31:0] st4_iter;
-    reg        st4_conv;
-    reg [23:0] st4_col;
+    wire signed [WIDTH-1:0] sq_zr  = $signed(s5_zr2 [HI:LO]);
+    wire signed [WIDTH-1:0] sq_zi  = $signed(s5_zi2 [HI:LO]);
+    wire signed [WIDTH-1:0] m_zrzi = $signed(s5_zrzi[HI:LO]);
 
-    reg signed [WIDTH-1:0] m3_num_r;
-    reg signed [WIDTH-1:0] m3_num_i;
-    reg signed [WIDTH-1:0] m3_den;
-    reg m3_black;
+  
+    localparam FPN = 5;
 
-    wire signed [WIDTH-1:0] fpr3 = m2_fpr * 3;
-    wire signed [WIDTH-1:0] fpi3 = m2_fpi * 3;
-    wire signed [WIDTH-1:0] den_calc = 3 * (q_mult(m2_fpr, m2_fpr) + q_mult(m2_fpi, m2_fpi));
+    reg [FPN*WIDTH-1:0] fp_r_v = {FPN*WIDTH{1'b0}};
+    reg [FPN*WIDTH-1:0] fp_i_v = {FPN*WIDTH{1'b0}};
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            st4_val   <= 1'b0;
-            st4_idx   <= 19'd0;
-            st4_zr    <= 64'sd0;
-            st4_zi    <= 64'sd0;
-            st4_iter  <= 32'd0;
-            st4_conv  <= 1'b0;
-            st4_col   <= 24'd0;
-
-            m3_num_r  <= 64'sd0;
-            m3_num_i  <= 64'sd0;
-            m3_den    <= 64'sd1;
-            m3_black  <= 1'b0;
-        end else if (CE) begin
-            st4_val   <= st3_val;
-            st4_idx   <= st3_idx;
-            st4_zr    <= st3_zr;
-            st4_zi    <= st3_zi;
-            st4_iter  <= st3_iter;
-            st4_conv  <= st3_conv;
-            st4_col   <= st3_col;
-
-            m3_den    <= den_calc;
-            m3_num_r  <= (q_mult(m2_zr3 - 64'sd4096, fpr3) + q_mult(m2_zi3, fpi3)) <<< SCALE;
-            m3_num_i  <= (q_mult(m2_zi3, fpr3) - q_mult(m2_zr3 - 64'sd4096, fpi3)) <<< SCALE;
-            m3_black  <= (den_calc == 64'sd0);
+        if (CE) begin
+            fp_r_v <= {fp_r_v[(FPN-1)*WIDTH-1:0], (sq_zr - sq_zi)};
+            fp_i_v <= {fp_i_v[(FPN-1)*WIDTH-1:0], (m_zrzi <<< 1)};
         end
     end
 
-    // =========================================================================
-    // Divider IP
-    // =========================================================================
+    wire signed [WIDTH-1:0] fpr_s6  = $signed(fp_r_v[WIDTH-1:0]);             
+    wire signed [WIDTH-1:0] fpi_s6  = $signed(fp_i_v[WIDTH-1:0]);
+    wire signed [WIDTH-1:0] fpr_s10 = $signed(fp_r_v[FPN*WIDTH-1 -: WIDTH]); 
+    wire signed [WIDTH-1:0] fpi_s10 = $signed(fp_i_v[FPN*WIDTH-1 -: WIDTH]);
+
+
+    reg signed [2*WIDTH-1:0] s7_fr_zr = 0, s7_fi_zi = 0, s7_fr_zi = 0, s7_fi_zr = 0, s7_fr_fr = 0, s7_fi_fi = 0;
+    reg signed [2*WIDTH-1:0] s8_fr_zr = 0, s8_fi_zi = 0, s8_fr_zi = 0, s8_fi_zr = 0, s8_fr_fr = 0, s8_fi_fi = 0;
+    reg signed [2*WIDTH-1:0] s9_fr_zr = 0, s9_fi_zi = 0, s9_fr_zi = 0, s9_fi_zr = 0, s9_fr_fr = 0, s9_fi_fi = 0;
+
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            s7_fr_zr <= fpr_s6 * zr_s6;
+            s7_fi_zi <= fpi_s6 * zi_s6;
+            s7_fr_zi <= fpr_s6 * zi_s6;
+            s7_fi_zr <= fpi_s6 * zr_s6;
+            s7_fr_fr <= fpr_s6 * fpr_s6;
+            s7_fi_fi <= fpi_s6 * fpi_s6;
+
+            s8_fr_zr <= s7_fr_zr; s8_fi_zi <= s7_fi_zi; s8_fr_zi <= s7_fr_zi;
+            s8_fi_zr <= s7_fi_zr; s8_fr_fr <= s7_fr_fr; s8_fi_fi <= s7_fi_fi;
+
+            s9_fr_zr <= s8_fr_zr; s9_fi_zi <= s8_fi_zi; s9_fr_zi <= s8_fr_zi;
+            s9_fi_zr <= s8_fi_zr; s9_fr_fr <= s8_fr_fr; s9_fi_fi <= s8_fi_fi;
+        end
+    end
+
+    wire signed [WIDTH-1:0] q_fr_zr = $signed(s9_fr_zr[HI:LO]);
+    wire signed [WIDTH-1:0] q_fi_zi = $signed(s9_fi_zi[HI:LO]);
+    wire signed [WIDTH-1:0] q_fr_zi = $signed(s9_fr_zi[HI:LO]);
+    wire signed [WIDTH-1:0] q_fi_zr = $signed(s9_fi_zr[HI:LO]);
+    wire signed [WIDTH-1:0] q_fr_fr = $signed(s9_fr_fr[HI:LO]);
+    wire signed [WIDTH-1:0] q_fi_fi = $signed(s9_fi_fi[HI:LO]);
+
+
+    reg signed [WIDTH-1:0] s10_zr3m1 = 64'sd0;
+    reg signed [WIDTH-1:0] s10_zi3   = 64'sd0;
+    reg signed [WIDTH-1:0] s10_dsum  = 64'sd0;
+
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            s10_zr3m1 <= q_fr_zr - q_fi_zi - ONE_Q;
+            s10_zi3   <= q_fr_zi + q_fi_zr;
+            s10_dsum  <= q_fr_fr + q_fi_fi;
+        end
+    end
+
+
+    reg signed [2*WIDTH-1:0] s11_a = 0, s11_b = 0, s11_c = 0, s11_d = 0;
+    reg signed [2*WIDTH-1:0] s12_a = 0, s12_b = 0, s12_c = 0, s12_d = 0;
+    reg signed [2*WIDTH-1:0] s13_a = 0, s13_b = 0, s13_c = 0, s13_d = 0;
+    reg signed [WIDTH-1:0]   s11_den = 64'sd1, s12_den = 64'sd1, s13_den = 64'sd1;
+
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            s11_a   <= s10_zr3m1 * fpr_s10;
+            s11_b   <= s10_zi3   * fpi_s10;
+            s11_c   <= s10_zi3   * fpr_s10;
+            s11_d   <= s10_zr3m1 * fpi_s10;
+            s11_den <= (s10_dsum <<< 1) + s10_dsum;
+
+            s12_a <= s11_a; s12_b <= s11_b; s12_c <= s11_c; s12_d <= s11_d;
+            s12_den <= s11_den;
+
+            s13_a <= s12_a; s13_b <= s12_b; s13_c <= s12_c; s13_d <= s12_d;
+            s13_den <= s12_den;
+        end
+    end
+
+    wire signed [WIDTH-1:0] q_a = $signed(s13_a[HI:LO]);
+    wire signed [WIDTH-1:0] q_b = $signed(s13_b[HI:LO]);
+    wire signed [WIDTH-1:0] q_c = $signed(s13_c[HI:LO]);
+    wire signed [WIDTH-1:0] q_d = $signed(s13_d[HI:LO]);
+
+
+    reg signed [WIDTH-1:0] s14_num_r = 64'sd0;
+    reg signed [WIDTH-1:0] s14_num_i = 64'sd0;
+    reg signed [WIDTH-1:0] s14_den   = 64'sd1;
+    reg                    s14_black = 1'b0;
+
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            s14_num_r <= (q_a + q_b) <<< SCALE;
+            s14_num_i <= (q_c - q_d) <<< SCALE;
+            s14_den   <= s13_den;
+            s14_black <= (s13_den == 64'sd0);
+        end
+    end
+
+ 
     wire [127:0] dout_r;
     wire [127:0] dout_i;
 
@@ -363,9 +350,9 @@ module pixel_generator (
         .aclk(out_stream_aclk),
         .aclken(CE),
         .s_axis_divisor_tvalid(1'b1),
-        .s_axis_divisor_tdata(m3_den),
+        .s_axis_divisor_tdata(s14_den),
         .s_axis_dividend_tvalid(1'b1),
-        .s_axis_dividend_tdata(m3_num_r),
+        .s_axis_dividend_tdata(s14_num_r),
         .m_axis_dout_tvalid(),
         .m_axis_dout_tdata(dout_r)
     );
@@ -374,140 +361,133 @@ module pixel_generator (
         .aclk(out_stream_aclk),
         .aclken(CE),
         .s_axis_divisor_tvalid(1'b1),
-        .s_axis_divisor_tdata(m3_den),
+        .s_axis_divisor_tdata(s14_den),
         .s_axis_dividend_tvalid(1'b1),
-        .s_axis_dividend_tdata(m3_num_i),
+        .s_axis_dividend_tdata(s14_num_i),
         .m_axis_dout_tvalid(),
         .m_axis_dout_tdata(dout_i)
     );
 
-    // =========================================================================
-    // Context shift register
-    // Because we inserted one extra stage before divider,
-    // context still follows divider input m3_* from STAGE 4.
-    // =========================================================================
-    localparam SR_DEPTH = DIV_LATENCY;
+   
+    wire signed [WIDTH-1:0] quot_r = $signed(dout_r[127:64]);
+    wire signed [WIDTH-1:0] quot_i = $signed(dout_i[127:64]);
 
-    reg        sr_val  [0:SR_DEPTH-1];
-    reg [18:0] sr_idx  [0:SR_DEPTH-1];
-    reg signed [WIDTH-1:0] sr_zr [0:SR_DEPTH-1];
-    reg signed [WIDTH-1:0] sr_zi [0:SR_DEPTH-1];
-    reg [31:0] sr_iter [0:SR_DEPTH-1];
-    reg        sr_conv [0:SR_DEPTH-1];
-    reg [23:0] sr_col  [0:SR_DEPTH-1];
-    reg        sr_blk  [0:SR_DEPTH-1];
 
-    integer i;
+    reg [SR_DEPTH-1:0]    sr_val_v = {SR_DEPTH{1'b0}};
+    reg [SR_DEPTH*19-1:0] sr_idx_v = {SR_DEPTH*19{1'b0}};
+    reg [SR_DEPTH-1:0]    sr_eol_v = {SR_DEPTH{1'b0}};
+    reg [SR_DEPTH-1:0]    sr_fin_v = {SR_DEPTH{1'b0}};
+    reg [SR_DEPTH*WIDTH-1:0] sr_zr_v = {SR_DEPTH*WIDTH{1'b0}};
+    reg [SR_DEPTH*WIDTH-1:0] sr_zi_v = {SR_DEPTH*WIDTH{1'b0}};
+    reg [SR_DEPTH*32-1:0] sr_iter_v = {SR_DEPTH*32{1'b0}};
+    reg [SR_DEPTH-1:0]    sr_conv_v = {SR_DEPTH{1'b0}};
+    reg [SR_DEPTH*24-1:0] sr_col_v  = {SR_DEPTH*24{1'b0}};
+    reg [SR_DEPTH-1:0]    sr_blk_v  = {SR_DEPTH{1'b0}};
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            for (i = 0; i < SR_DEPTH; i = i + 1) begin
-                sr_val[i]  <= 1'b0;
-                sr_idx[i]  <= 19'd0;
-                sr_zr[i]   <= 64'sd0;
-                sr_zi[i]   <= 64'sd0;
-                sr_iter[i] <= 32'd0;
-                sr_conv[i] <= 1'b0;
-                sr_col[i]  <= 24'd0;
-                sr_blk[i]  <= 1'b0;
-            end
-        end else if (CE) begin
-            sr_val[0]  <= st4_val;
-            sr_idx[0]  <= st4_idx;
-            sr_zr[0]   <= st4_zr;
-            sr_zi[0]   <= st4_zi;
-            sr_iter[0] <= st4_iter;
-            sr_conv[0] <= st4_conv;
-            sr_col[0]  <= st4_col;
-            sr_blk[0]  <= m3_black;
+        if (!out_stream_aresetn)
+            sr_val_v <= {SR_DEPTH{1'b0}};
+        else if (CE)
+            sr_val_v <= {sr_val_v[SR_DEPTH-2:0], pre_val};
+    end
 
-            for (i = 1; i < SR_DEPTH; i = i + 1) begin
-                sr_val[i]  <= sr_val[i-1];
-                sr_idx[i]  <= sr_idx[i-1];
-                sr_zr[i]   <= sr_zr[i-1];
-                sr_zi[i]   <= sr_zi[i-1];
-                sr_iter[i] <= sr_iter[i-1];
-                sr_conv[i] <= sr_conv[i-1];
-                sr_col[i]  <= sr_col[i-1];
-                sr_blk[i]  <= sr_blk[i-1];
-            end
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            sr_idx_v  <= {sr_idx_v [(SR_DEPTH-1)*19-1:0],    pre_idx};
+            sr_eol_v  <= {sr_eol_v [SR_DEPTH-2:0],           pre_eol};
+            sr_fin_v  <= {sr_fin_v [SR_DEPTH-2:0],           pre_fin};
+            sr_zr_v   <= {sr_zr_v  [(SR_DEPTH-1)*WIDTH-1:0], zr_s14};
+            sr_zi_v   <= {sr_zi_v  [(SR_DEPTH-1)*WIDTH-1:0], zi_s14};
+            sr_iter_v <= {sr_iter_v[(SR_DEPTH-1)*32-1:0],    pre_iter};
+            sr_conv_v <= {sr_conv_v[SR_DEPTH-2:0],           pre_conv};
+            sr_col_v  <= {sr_col_v [(SR_DEPTH-1)*24-1:0],    pre_col};
+            sr_blk_v  <= {sr_blk_v [SR_DEPTH-2:0],           s14_black};
         end
     end
 
-    // =========================================================================
-    // END OF PIPELINE
-    // =========================================================================
-    wire        end_val  = sr_val[SR_DEPTH-1];
-    wire [18:0] end_idx  = sr_idx[SR_DEPTH-1];
-    wire signed [WIDTH-1:0] end_zr = sr_zr[SR_DEPTH-1];
-    wire signed [WIDTH-1:0] end_zi = sr_zi[SR_DEPTH-1];
-    wire [31:0] end_iter = sr_iter[SR_DEPTH-1];
-    wire        end_conv = sr_conv[SR_DEPTH-1];
-    wire [23:0] end_col  = sr_col[SR_DEPTH-1];
-    wire        end_blk  = sr_blk[SR_DEPTH-1];
+    wire                    end_val  = sr_val_v [SR_DEPTH-1];
+    wire [18:0]             end_idx  = sr_idx_v [SR_DEPTH*19-1 -: 19];
+    wire                    end_eol  = sr_eol_v [SR_DEPTH-1];
+    wire                    end_fin  = sr_fin_v [SR_DEPTH-1];
+    wire signed [WIDTH-1:0] end_zr   = $signed(sr_zr_v[SR_DEPTH*WIDTH-1 -: WIDTH]);
+    wire signed [WIDTH-1:0] end_zi   = $signed(sr_zi_v[SR_DEPTH*WIDTH-1 -: WIDTH]);
+    wire [31:0]             end_iter = sr_iter_v[SR_DEPTH*32-1 -: 32];
+    wire                    end_conv = sr_conv_v[SR_DEPTH-1];
+    wire [23:0]             end_col  = sr_col_v [SR_DEPTH*24-1 -: 24];
+    wire                    end_blk  = sr_blk_v [SR_DEPTH-1];
 
-    wire signed [63:0] quot_r = dout_r[63:0];
-    wire signed [63:0] quot_i = dout_i[63:0];
+ 
+    reg                    e1_val   = 1'b0;
+    reg                    e1_fin   = 1'b0;
+    reg [18:0]             e1_idx   = 19'd0;
+    reg                    e1_eol   = 1'b0;
+    reg signed [WIDTH-1:0] e1_zr    = 64'sd0;
+    reg signed [WIDTH-1:0] e1_zi    = 64'sd0;
+    reg [31:0]             e1_iter  = 32'd0;
+    reg                    e1_conv0 = 1'b0;
+    reg [23:0]             e1_col0  = 24'd0;
+    reg                    e1_blk   = 1'b0;
 
-    wire signed [63:0] calc_zr = end_zr - quot_r;
-    wire signed [63:0] calc_zi = end_zi - quot_i;
-    wire [31:0]        calc_iter = end_iter + 1'b1;
+    always @(posedge out_stream_aclk) begin
+        if (!out_stream_aresetn)
+            e1_val <= 1'b0;
+        else if (CE)
+            e1_val <= end_val;
+    end
 
-    // =========================================================================
-    // Fast colour path
-    // =========================================================================
-    reg        is_just_converged;
-    reg [23:0] calc_col;
-
-    always @(*) begin
-        is_just_converged = 1'b0;
-        calc_col = 24'h000000;
-
-        if (end_blk) begin
-            is_just_converged = 1'b1;
-            calc_col = 24'h000000;
-        end else if (calc_zr > 64'sd3900 && calc_zr < 64'sd4300) begin
-            is_just_converged = 1'b1;
-            calc_col = 24'hE63946;
-        end else if (calc_zr < -64'sd1800 && calc_zi > 64'sd3300) begin
-            is_just_converged = 1'b1;
-            calc_col = 24'h2A9D8F;
-        end else if (calc_zr < -64'sd1800 && calc_zi < -64'sd3300) begin
-            is_just_converged = 1'b1;
-            calc_col = 24'h457B9D;
+    always @(posedge out_stream_aclk) begin
+        if (CE) begin
+            e1_fin   <= end_fin;
+            e1_idx   <= end_idx;
+            e1_eol   <= end_eol;
+            e1_iter  <= end_conv ? end_iter : (end_iter + 32'd1);
+            e1_zr    <= end_conv ? end_zr   : (end_zr - quot_r);
+            e1_zi    <= end_conv ? end_zi   : (end_zi - quot_i);
+            e1_conv0 <= end_conv;
+            e1_col0  <= end_col;
+            e1_blk   <= end_blk;
         end
     end
 
-    // =========================================================================
-    // Feedback state
-    // =========================================================================
-    assign fb_val  = end_val;
-    assign fb_idx  = end_idx;
-    assign fb_conv = end_conv || is_just_converged;
-    assign fb_col  = end_conv ? end_col : (is_just_converged ? calc_col : 24'd0);
-    assign fb_zr   = end_conv ? end_zr : calc_zr;
-    assign fb_zi   = end_conv ? end_zi : calc_zi;
-    assign fb_iter = end_conv ? end_iter : calc_iter;
 
-    // =========================================================================
-    // Registered AXI-Stream output
-    // =========================================================================
-    reg [23:0] axis_tdata_r;
-    reg        axis_tvalid_r;
-    reg        axis_tuser_r;
-    reg        axis_tlast_r;
+    wire in_r1 = (e1_zr >  64'sd3900) && (e1_zr <  64'sd4300);
+    wire in_r2 = (e1_zr < -64'sd1800) && (e1_zi >  64'sd3300);
+    wire in_r3 = (e1_zr < -64'sd1800) && (e1_zi < -64'sd3300);
+
+    wire        just_conv = (!e1_conv0) && (e1_blk || in_r1 || in_r2 || in_r3);
+    wire [23:0] win_col   = e1_blk ? 24'h000000 :
+                            in_r1  ? 24'hE63946 :
+                            in_r2  ? 24'h2A9D8F :
+                            in_r3  ? 24'h457B9D : 24'h000000;
+
+    assign fb_val  = e1_val;
+    assign fb_idx  = e1_idx;
+    assign fb_eol  = e1_eol;
+    assign fb_conv = e1_conv0 || just_conv;
+    assign fb_col  = e1_conv0 ? e1_col0 : (just_conv ? win_col : 24'd0);
+    assign fb_zr   = e1_zr;
+    assign fb_zi   = e1_zi;
+    assign fb_iter = e1_iter;
+
+    wire emit = e1_val && e1_fin;
+
+    reg [23:0] axis_tdata_r  = 24'd0;
+    reg        axis_tvalid_r = 1'b0;
+    reg        axis_tuser_r  = 1'b0;
+    reg        axis_tlast_r  = 1'b0;
 
     always @(posedge out_stream_aclk) begin
-        if (!out_stream_aresetn) begin
-            axis_tdata_r  <= 24'd0;
+        if (!out_stream_aresetn)
             axis_tvalid_r <= 1'b0;
-            axis_tuser_r  <= 1'b0;
-            axis_tlast_r  <= 1'b0;
-        end else if (CE) begin
-            axis_tvalid_r <= (trip == 6'd0) && end_val;
-            axis_tdata_r  <= fb_conv ? fb_col : 24'h000000;
-            axis_tuser_r  <= (end_idx == 19'd0);
-            axis_tlast_r  <= (end_idx[9:0] == 10'd639);
+        else if (CE)
+            axis_tvalid_r <= emit;
+    end
+
+    always @(posedge out_stream_aclk) begin
+        if (CE && emit) begin
+            axis_tdata_r <= fb_conv ? fb_col : 24'h000000;
+            axis_tuser_r <= (e1_idx == 19'd0);
+            axis_tlast_r <= e1_eol;
         end
     end
 
@@ -517,3 +497,4 @@ module pixel_generator (
     assign out_stream_tlast  = axis_tlast_r;
 
 endmodule
+
